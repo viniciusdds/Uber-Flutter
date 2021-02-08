@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "306642979958",
+    "project_id": "uber-8697e",
+    "storage_bucket": "uber-8697e.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:306642979958:android:8de5ee5025b5f6d7032357",
+        "android_client_info": {
+          "package_name": "br.com.damasceno.uber"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "306642979958-96mqgh74tnmckvhus9dscsob3eun8ijv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC74J5fQ-lWAZQnRikKm5A9p5O4pIAtCDo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "306642979958-96mqgh74tnmckvhus9dscsob3eun8ijv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
