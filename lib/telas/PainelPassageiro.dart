@@ -6,6 +6,13 @@ import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 
+import 'package:uber/model/Destino.dart';
+import 'package:uber/model/Requisicao.dart';
+import 'package:uber/model/Usuario.dart';
+import 'package:uber/model/util/StatusRequisicao.dart';
+import 'package:uber/model/util/UsuarioFirebase.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class PainelPassageiro extends StatefulWidget {
   @override
   _PainelPassageiroState createState() => _PainelPassageiroState();
@@ -13,6 +20,7 @@ class PainelPassageiro extends StatefulWidget {
 
 class _PainelPassageiroState extends State<PainelPassageiro> {
 
+  TextEditingController _controllerDestino = TextEditingController(text: "av. paulista, 807");
   List<String> itensMenu = [
     "Configurações", "Deslogar"
   ];
@@ -21,7 +29,7 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
   CameraPosition _posicaoCamera = CameraPosition(
       target: LatLng(-23.563999, -46.653256)
   );
-
+  Set<Marker> _marcadores = {};
 
   _deslogarUsuario() async {
       FirebaseAuth auth = FirebaseAuth.instance;
@@ -55,6 +63,8 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
 
     geolocator.getPositionStream(locationOptions).listen((Position position) {
 
+      _exibirMarcadorPassageiro(position);
+
        _posicaoCamera = CameraPosition(
            target: LatLng(position.latitude, position.longitude),
            zoom: 19.0
@@ -70,6 +80,9 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
 
      setState(() {
        if(position != null){
+
+         _exibirMarcadorPassageiro(position);
+
           _posicaoCamera = CameraPosition(
               target: LatLng(position.latitude, position.longitude),
               zoom: 19.0
@@ -86,6 +99,111 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
         cameraPosition
       )
     );
+  }
+
+  _exibirMarcadorPassageiro(Position local) async {
+
+    double pixelRatio = MediaQuery.of(context).devicePixelRatio;
+
+    BitmapDescriptor.fromAssetImage(
+        ImageConfiguration(devicePixelRatio: pixelRatio),
+        "imagens/passageiro.png"
+    ).then((BitmapDescriptor icone) {
+
+      Marker marcadorPassageiro = Marker(
+          markerId: MarkerId("marcador-passageiro"),
+          position: LatLng(local.latitude, local.longitude),
+          infoWindow: InfoWindow(
+              title: "Meu local"
+          ),
+          icon: icone
+      );
+
+      setState(() {
+        _marcadores.add(marcadorPassageiro);
+      });
+    });
+  }
+
+  _chamarUber() async {
+
+    String enderecoDestino = _controllerDestino.text;
+
+    if(enderecoDestino.isNotEmpty) {
+
+      List<Placemark> listaEnderecos = await Geolocator()
+          .placemarkFromAddress(enderecoDestino);
+
+
+       if(listaEnderecos != null && listaEnderecos.length > 0){
+
+          Placemark endereco = listaEnderecos[0];
+
+          Destino destino = Destino();
+          destino.cidade = endereco.administrativeArea;
+          destino.cep = endereco.postalCode;
+          destino.bairro = endereco.subLocality;
+          destino.rua = endereco.thoroughfare;
+          destino.numero = endereco.subThoroughfare;
+
+          destino.latitude = endereco.position.latitude;
+          destino.longitude = endereco.position.longitude;
+
+          String enderecoConfirmacao;
+          enderecoConfirmacao = "\n Cidade: " + destino.cidade;
+          enderecoConfirmacao += "\n Rua: " + destino.rua + ", " + destino.numero;
+          enderecoConfirmacao += "\n Bairro: " + destino.bairro;
+          enderecoConfirmacao += "\n Cep: " + destino.cep;
+
+          showDialog(
+              context: context,
+              builder: (context){
+                 return AlertDialog(
+                   title: Text("Confirmação do endereço", style: TextStyle(fontSize: 17)),
+                   content: Text(enderecoConfirmacao),
+                   contentPadding: EdgeInsets.all(16),
+                   actions: [
+                     FlatButton(
+                         onPressed: () => Navigator.pop(context),
+                         child: Text("Cancelar", style: TextStyle(color: Colors.red))
+                     ),
+                     FlatButton(
+                         onPressed: (){
+
+                           //salvar requisição
+                           _salvarRequisicao(destino);
+
+                           Navigator.pop(context);
+                         },
+                         child: Text("Confirmar", style: TextStyle(color: Colors.green))
+                     )
+                   ],
+                 );
+              }
+          );
+       }
+
+    }else{
+       SnackBar(
+         content: Text("Preencha o endereço"),
+       );
+    }
+  }
+
+  _salvarRequisicao(Destino destino) async {
+
+    Usuario passageiro = await UsuarioFirebase.getDadosUsuarioLogado();
+
+    Requisicao requisicao = Requisicao();
+    requisicao.destino = destino;
+    requisicao.passageiro = passageiro;
+    requisicao.status = StatusRequisicao.AGUARDANDO;
+
+    FirebaseFirestore db = FirebaseFirestore.instance;
+    
+    db.collection("requisicoes")
+     .add(requisicao.toMap());
+
   }
 
   @override
@@ -123,8 +241,9 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
                mapType: MapType.normal,
                initialCameraPosition: _posicaoCamera,
                onMapCreated: _onMapCreated,
-               myLocationEnabled: true,
+               //myLocationEnabled: true,
                myLocationButtonEnabled: false,
+               markers: _marcadores,
              ),
              Positioned(
                  top: 0,
@@ -171,6 +290,7 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
                          color: Colors.white
                      ),
                      child: TextField(
+                       controller: _controllerDestino,
                        decoration: InputDecoration(
                            icon: Container(
                              margin: EdgeInsets.only(left: 20),
@@ -199,7 +319,7 @@ class _PainelPassageiroState extends State<PainelPassageiro> {
                      color: Color(0xff1ebbd8),
                      padding: EdgeInsets.fromLTRB(32, 16, 32, 16),
                      onPressed: (){
-
+                        _chamarUber();
                      },
                    ),
                  )
